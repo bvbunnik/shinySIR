@@ -149,9 +149,10 @@ run_shiny <- function(model = "SIR", neweqns = NULL,
                    )
         ),
         mainPanel(
-            plotOutput("plot1"),
-            br(), br(), br(),
-            tableOutput("table1")
+            tabsetPanel(type = "tabs",
+                tabPanel("Plot", plotOutput("plot1"), br(), br(), br(), tableOutput("table1") ),
+                tabPanel("Table", tableOutput("table1"))
+            )
         )
     )
 
