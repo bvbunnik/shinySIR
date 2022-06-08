@@ -5,6 +5,6 @@ test_run_shiny.R
 .Rproj.user
 shinySIR.Rproj
 .DS_Store
-
 doc
 Meta
+.Rhistory

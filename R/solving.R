@@ -29,7 +29,7 @@ solve_eqns <- function(eqns, ics, times, parms){
                                parms = parms)
     }
 
-    output <- data.frame(soln) %>% tbl_df() %>%
+    output <- data.frame(soln) %>% as_tibble() %>%
         tidyr::gather(variable, value, 2:ncol(.))
 
     return(output)

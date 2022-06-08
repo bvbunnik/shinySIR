@@ -16,7 +16,10 @@
 plot_model <- function(output, linesize, textsize, xlabel, ylabel, legend_title, levels, values, ...){
 
     output$variable <- factor(output$variable, levels = levels)
-
+    if(max(output$time>2*365)){
+      output$time = output$time/365
+    }
+    
     ggplot(output, aes(x = time, y = value, colour = as.factor(variable))) +
             geom_line(size = linesize) +
             scale_colour_manual(legend_title, values = values, ...) +

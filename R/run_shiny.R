@@ -43,7 +43,7 @@ run_shiny <- function(model = "SIR", neweqns = NULL,
                       xlabel = "Time", ylabel = "Number of individuals",
                       legend_title = "Compartment",
                       slider_steps = NULL,
-                      values = NULL, ...
+                      values = brewer.pal(3, "Set1")[c(2,1,3)], ...
                       ){
 
     # Get eqns & display name
@@ -150,8 +150,15 @@ run_shiny <- function(model = "SIR", neweqns = NULL,
         ),
         mainPanel(
             tabsetPanel(type = "tabs",
-                tabPanel("Plot", plotOutput("plot1")),
-                tabPanel("Table", tableOutput("table1"))
+                tabPanel("Plot", 
+                         plotOutput("plot1"), 
+                         hr(),
+                         h4("Parameter values used:"),
+                         tableOutput("table1"),
+                         withMathJax(),
+                         uiOutput("equations")
+                         ),
+                tabPanel("Table", tableOutput("datatable"))
             )
         )
     )
@@ -162,59 +169,75 @@ run_shiny <- function(model = "SIR", neweqns = NULL,
 
         # Get initial population size (doesn't change with user input)
         START.N <- as.numeric(sum(ics))
-
-        output$plot1 <- renderPlot({
-
-            # Get parameters from user input
+        ODEoutput <- reactive({
             parms_vector <- unlist(reactiveValuesToList(input))
-
+            parms_vector["mu"] <- 1/(parms_vector["mu"]*365)
             parms_vector <- c(parms_vector, N = START.N)
-
+            
             # Time vector (total length input from shiny interface)
             times_vector <- seq(from = tstart, to = tmax, by = timestep)
-
-            # Run ODE solver
-            ODEoutput <- solve_eqns(eqns, ics, times = times_vector, parms = parms_vector)
+            
+            solve_eqns(eqns, ics, times = times_vector, parms = parms_vector)
+        })
+        
+        
+        output$plot1 <- renderPlot({
 
             # Plot output
-            plot_model(ODEoutput, linesize, textsize, xlabel, ylabel, legend_title, levels = names(ics), values, ...)
+            plot_model(ODEoutput(), linesize, textsize, xlabel, ylabel, legend_title, levels = names(ics), values, ...)
         })
 
+        output$datatable <- renderTable({
+            ODEoutput() %>% pivot_wider(names_from = "variable", values_from = value)
+        }, bordered = TRUE)
+
         output$table1 <- renderTable({
+                parms_vector <- unlist(reactiveValuesToList(input))
+                parms_vector <- c(parms_vector, N = START.N)
 
-            parms_vector <- unlist(reactiveValuesToList(input))
-            parms_vector <- c(parms_vector, N = START.N)
-
-            if ((model %in% c("SIR", "SIS")) & showtable == TRUE) {
-                data.frame(
-                    Parameter = c("gamma", "beta"),
-                    Value = c(1/parms_vector["Ip"],
-                              parms_vector["R0"] * (1/parms_vector["Ip"]) / parms_vector["N"])
-                )
-            } else if ((model %in% c("SIRS")) & showtable == TRUE) {
-                data.frame(
-                    Parameter = c("gamma", "delta", "beta"),
-                    Value = c(1/parms_vector["Ip"],
-                              1/parms_vector["Rp"],
-                              parms_vector["R0"] * (1/parms_vector["Ip"]) / parms_vector["N"])
-                )
-            } else if ((model %in% c("SIRbirths", "SISbirths", "SIRvaccination")) & showtable == TRUE) {
-                data.frame(
-                    Parameter = c("gamma", "beta"),
-                    Value = c(1/parms_vector["Ip"],
-                              parms_vector["R0"] * (1/parms_vector["Ip"] + parms_vector["mu"]) / parms_vector["N"])
-                )
-            } else if ((model %in% c("SIRSbirths", "SIRSvaccination")) & showtable == TRUE) {
-                data.frame(
-                    Parameter = c("gamma", "delta", "beta"),
-                    Value = c(1/parms_vector["Ip"],
-                              1/parms_vector["Rp"],
-                              parms_vector["R0"] * (1/parms_vector["Ip"] + parms_vector["mu"]) / parms_vector["N"])
-                )
-            }
-
-        }, digits = -1, bordered = TRUE)
-
+                if ((model %in% c("SIR", "SIS")) & showtable == TRUE) {
+                    data.frame(
+                        Parameter = c("gamma", "beta"),
+                        Value = c(1/parms_vector["Ip"],
+                                  parms_vector["R0"] * (1/parms_vector["Ip"]) / parms_vector["N"])
+                    )
+                } else if ((model %in% c("SIRS")) & showtable == TRUE) {
+                    data.frame(
+                        Parameter = c("gamma", "delta", "beta"),
+                        Value = c(1/parms_vector["Ip"],
+                                  1/parms_vector["Rp"],
+                                  parms_vector["R0"] * (1/parms_vector["Ip"]) / parms_vector["N"])
+                    )
+                } else if ((model %in% c("SIRbirths", "SISbirths", "SIRvaccination")) & showtable == TRUE) {
+                    data.frame(
+                        Parameter = c("gamma", "beta"),
+                        Value = c(1/parms_vector["Ip"],
+                                  parms_vector["R0"] * (1/parms_vector["Ip"] + parms_vector["mu"]) / parms_vector["N"])
+                    )
+                } else if ((model %in% c("SIRSbirths", "SIRSvaccination")) & showtable == TRUE) {
+                    data.frame(
+                        Parameter = c("gamma", "delta", "beta"),
+                        Value = c(1/parms_vector["Ip"],
+                                  1/parms_vector["Rp"],
+                                  parms_vector["R0"] * (1/parms_vector["Ip"] + parms_vector["mu"]) / parms_vector["N"])
+                    )
+                }
+        }, digits=6)
+        
+        output$equations <- renderUI({
+            withMathJax(helpText('To incorporate vaccination, assume a proportion, \\(p\\), of new births into the population are
+                                    vaccinated (and thus immune to infection). Those that are vaccinated will avoid the susceptible 
+                                    class and go straight to the recovered class, whereas those that are unvaccinated will go into 
+                                    the susceptible class as before. If \\(p\\) is the proportion vaccinated, then \\(1 - p\\) is the 
+                                    proportion left unvaccinated, and the equations become:
+                                     
+                                     $$\\begin{align*}
+                                 \\frac{dS}{dt} &= \\mu N (1 - p) -\\beta S I - \\mu S\\\\
+                                 \\frac{dI}{dt} &= \\beta S I - \\gamma I - \\mu I\\\\
+                                 \\frac{dR}{dt} &= \\gamma I - \\mu R + \\mu N p.
+                                 \\end{align*}$$'))
+        })
+        
     }
 
     shinyApp(ui, server)
